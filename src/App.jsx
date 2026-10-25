@@ -553,11 +553,7 @@ function App() {
         <div className="hero">
           <div className="eyebrow">A STRATEGY SIMULATION</div>
 
-          <h1>
-            Cooperation is
-            <br />
-            <span>a survival game.</span>
-          </h1>
+          <h1>Survival is a cooperation game</h1>
 
           <p className="subtitle">
             Every decision has a consequence.
