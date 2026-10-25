@@ -16,6 +16,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
     randomness: 0,
     initialAction: "C",
     punishmentDuration: 2,
+    energyConservationThreshold: 4,
   },
   yellow: {
     label: "Grim trigger",
@@ -23,6 +24,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
     randomness: 0,
     initialAction: "C",
     punishmentDuration: 3,
+    energyConservationThreshold: 4,
   },
   blue: {
     label: "Tit for tat",
@@ -30,6 +32,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
     randomness: 0,
     initialAction: "C",
     punishmentDuration: 2,
+    energyConservationThreshold: 4,
   },
   red: {
     label: "Always defect",
@@ -37,6 +40,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
     randomness: 0,
     initialAction: "D",
     punishmentDuration: 2,
+    energyConservationThreshold: 4,
   },
 };
 
@@ -116,8 +120,12 @@ function getStrategyConfig(color, strategySettings) {
   return strategySettings[color] ?? DEFAULT_STRATEGY_SETTINGS[color];
 }
 
-function resolveStrategyAction(pairState, strategyConfig) {
+function resolveStrategyAction(pairState, strategyConfig, cell) {
   let action = strategyConfig.initialAction;
+
+  const isLowEnergy = Boolean(
+    cell && cell.hp <= (strategyConfig.energyConservationThreshold ?? 4)
+  );
 
   switch (strategyConfig.type) {
     case "always-cooperate":
@@ -137,6 +145,10 @@ function resolveStrategyAction(pairState, strategyConfig) {
       break;
     default:
       action = strategyConfig.initialAction;
+  }
+
+  if (isLowEnergy && strategyConfig.type !== "always-defect") {
+    action = "D";
   }
 
   if (pairState.punishmentRemaining > 0) {
@@ -197,8 +209,8 @@ function applyAliveTick(cells, strategySettings) {
       const cellConfig = getStrategyConfig(cell.color, strategySettings);
       const neighborConfig = getStrategyConfig(neighbor.color, strategySettings);
 
-      const cellAction = resolveStrategyAction(cellPairState, cellConfig);
-      const neighborAction = resolveStrategyAction(neighborPairState, neighborConfig);
+      const cellAction = resolveStrategyAction(cellPairState, cellConfig, cell);
+      const neighborAction = resolveStrategyAction(neighborPairState, neighborConfig, neighbor);
 
       if (cellAction === "C" && neighborAction === "C") {
         cell.hp += 3;
@@ -405,7 +417,7 @@ function App() {
     const values = [
       ...CELL_COLORS.map((color) => ({
         color,
-        label: color.charAt(0).toUpperCase() + color.slice(1),
+        label: getStrategyDisplayName(color),
         count: colorCounts[color],
       })),
       { color: "dead", label: "Dead", count: deadCount },
@@ -491,11 +503,13 @@ function App() {
   function simulateRound(sweeps = 1) {
     setCells((previousCells) => {
       let nextCells = previousCells.map((cell) => {
-        if (!cell || !cell.alive) {
-          return cell ? { ...cell, hp: 0 } : null;
+        if (!cell) return null;
+
+        if (!cell.alive) {
+          return { ...cell, hp: 0 };
         }
 
-        return { ...cell, hp: STARTING_HP, pairMemory: { ...cell.pairMemory } };
+        return { ...cell, pairMemory: { ...cell.pairMemory } };
       });
 
       for (let sweep = 0; sweep < sweeps; sweep += 1) {
@@ -612,6 +626,12 @@ function App() {
   }
 
   const selectedStrategyConfig = strategySettings[selectedStrategyColor];
+  const activeTabHeading =
+    arenaTab === "analytics"
+      ? "Evolution Analytics"
+      : arenaTab === "strategy"
+        ? "Strategy Customiser"
+        : "The Arena";
 
   const renderArenaTab = () => {
     if (arenaTab === "analytics") {
@@ -631,19 +651,41 @@ function App() {
                   {[0, 1, 2, 3, 4].map((step) => {
                     const y = 26 + (step * 56);
                     return (
-                      <line
-                        key={`grid-${step}`}
-                        x1="60"
-                        x2="640"
-                        y1={y}
-                        y2={y}
-                        stroke="rgba(213, 227, 255, 0.13)"
-                        strokeWidth="1"
-                      />
+                      <g key={`grid-${step}`}>
+                        <line
+                          x1="60"
+                          x2="640"
+                          y1={y}
+                          y2={y}
+                          stroke="rgba(213, 227, 255, 0.13)"
+                          strokeWidth="1"
+                        />
+                        <text x="26" y={y + 4} fill="#d3d9e4" fontSize="10" textAnchor="end">
+                          {Math.round((4 - step) * (analyticsMaxValue / 4))}
+                        </text>
+                      </g>
                     );
                   })}
                   <line x1="60" x2="640" y1="230" y2="230" stroke="rgba(213,227,255,0.5)" />
                   <line x1="60" x2="60" y1="30" y2="230" stroke="rgba(213,227,255,0.5)" />
+                </g>
+
+                <g>
+                  {analyticsHistory.map((entry, index) => {
+                    const x = 60 + (index / Math.max(1, analyticsHistory.length - 1)) * 580;
+                    return (
+                      <text
+                        key={`x-label-${index}`}
+                        x={x}
+                        y="248"
+                        fill="#d3d9e4"
+                        fontSize="10"
+                        textAnchor="middle"
+                      >
+                        {index}
+                      </text>
+                    );
+                  })}
                 </g>
 
                 <g>
@@ -680,7 +722,7 @@ function App() {
                                 stroke="#0f141a"
                                 strokeWidth="1"
                               >
-                                <title>{`${getStrategyDisplayName(color)}: ${entry[color]} cells`}</title>
+                                <title>{`${getStrategyDisplayName(color)}: sweep ${index}, cells ${entry[color]}`}</title>
                               </circle>
                             </g>
                           );
@@ -778,6 +820,21 @@ function App() {
                     Defect
                   </button>
                 </div>
+
+                <div className="setting-row">
+                  <label htmlFor="energy-threshold">Energy conservation threshold</label>
+                  <span>{selectedStrategyConfig.energyConservationThreshold}</span>
+                </div>
+                <input
+                  id="energy-threshold"
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={selectedStrategyConfig.energyConservationThreshold}
+                  onChange={(event) =>
+                    handleStrategySettingChange("energyConservationThreshold", Number(event.target.value))
+                  }
+                />
 
                 <div className="setting-row">
                   <label htmlFor="punishment-slider">Punishment duration</label>
@@ -960,7 +1017,7 @@ function App() {
       <section className="game-heading with-tabs">
         <div>
           <div className="eyebrow">LIVE SIMULATION · DEMO</div>
-          <h1>The Arena</h1>
+          <h1>{activeTabHeading}</h1>
           <p>Click cells to toggle life, then run the simulation.</p>
         </div>
 
