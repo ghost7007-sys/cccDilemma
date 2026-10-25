@@ -52,12 +52,13 @@ footer,
 }
 
 .brand {
-  color: #ff6b5f;
-  font-size: clamp(36px, 6vw, 68px);
+  color: #ff7b66;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(34px, 5.2vw, 66px);
   font-weight: 700;
   letter-spacing: -2px;
   text-align: center;
-  margin: 10px auto 30px;
+  margin: 14px auto 28px;
   line-height: 1;
 }
 
@@ -76,18 +77,22 @@ footer,
 }
 
 .eyebrow {
-  color: #ff7a1a;
+  color: #7ecbff;
   font-size: 11px;
   margin-bottom: 20px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 2px;
 }
 
 h1 {
-  font-size: clamp(32px, 4vw, 58px);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(32px, 4vw, 60px);
   line-height: 1.08;
-  letter-spacing: -2px;
+  letter-spacing: -1px;
   margin: 0;
-  color: #ff7a59;
+  color: #f4d2a8;
   text-align: center;
+  font-weight: 700;
 }
 
 .home-screen h1 span {
