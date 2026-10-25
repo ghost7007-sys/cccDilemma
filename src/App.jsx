@@ -4,7 +4,7 @@ import "./App.css";
 
 const GRID_SIZE = 10;
 const STARTING_HP = 10;
-const MAX_HP = 30;
+const MAX_HP = 20;
 const SWEEP_BATCH_SIZE = 15;
 const UPDATE_INTERVAL_MS = 500;
 const CELL_COLORS = ["yellow", "green", "blue", "red"];
@@ -13,7 +13,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
   green: {
     label: "Always cooperate",
     type: "always-cooperate",
-    randomness: 0,
+    randomness: 8,
     initialAction: "C",
     punishmentDuration: 2,
     energyConservationThreshold: 4,
@@ -21,7 +21,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
   yellow: {
     label: "Grim trigger",
     type: "grim-trigger",
-    randomness: 0,
+    randomness: 10,
     initialAction: "C",
     punishmentDuration: 3,
     energyConservationThreshold: 4,
@@ -29,7 +29,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
   blue: {
     label: "Tit for tat",
     type: "tit-for-tat",
-    randomness: 0,
+    randomness: 7,
     initialAction: "C",
     punishmentDuration: 2,
     energyConservationThreshold: 4,
@@ -37,7 +37,7 @@ const DEFAULT_STRATEGY_SETTINGS = {
   red: {
     label: "Always defect",
     type: "always-defect",
-    randomness: 0,
+    randomness: 5,
     initialAction: "D",
     punishmentDuration: 2,
     energyConservationThreshold: 4,
@@ -198,12 +198,14 @@ function applyAliveTick(cells, strategySettings) {
           lastOpponentAction: null,
           punishmentRemaining: 0,
           grimTriggered: false,
+          stability: 0,
         };
       const neighborPairState =
         neighbor.pairMemory[pairKey] ?? {
           lastOpponentAction: null,
           punishmentRemaining: 0,
           grimTriggered: false,
+          stability: 0,
         };
 
       const cellConfig = getStrategyConfig(cell.color, strategySettings);
@@ -216,11 +218,11 @@ function applyAliveTick(cells, strategySettings) {
         cell.hp += 3;
         neighbor.hp += 3;
       } else if (cellAction === "D" && neighborAction === "C") {
-        cell.hp += 5;
-        neighbor.hp -= 3;
+        cell.hp += 4;
+        neighbor.hp -= 4;
       } else if (cellAction === "C" && neighborAction === "D") {
-        cell.hp -= 3;
-        neighbor.hp += 5;
+        cell.hp -= 4;
+        neighbor.hp += 4;
       } else {
         cell.hp += 1;
         neighbor.hp += 1;
@@ -232,8 +234,35 @@ function applyAliveTick(cells, strategySettings) {
       cell.strategy = cellAction;
       neighbor.strategy = neighborAction;
 
+      const pairStable =
+        cellAction === neighborAction &&
+        cellPairState.lastOpponentAction === neighborAction &&
+        neighborPairState.lastOpponentAction === cellAction;
+
+      if (pairStable) {
+        cellPairState.stability = (cellPairState.stability ?? 0) + 1;
+        neighborPairState.stability = (neighborPairState.stability ?? 0) + 1;
+      } else {
+        cellPairState.stability = 0;
+        neighborPairState.stability = 0;
+      }
+
       cellPairState.lastOpponentAction = neighborAction;
       neighborPairState.lastOpponentAction = cellAction;
+
+      if ((cellPairState.stability ?? 0) >= 6 || (neighborPairState.stability ?? 0) >= 6) {
+        if (Math.random() < 0.18) {
+          const shookAction = cellAction === "C" ? "D" : "C";
+          cellPairState.lastOpponentAction = shookAction;
+          neighborPairState.lastOpponentAction = shookAction;
+          cellPairState.punishmentRemaining = 0;
+          neighborPairState.punishmentRemaining = 0;
+          cellPairState.grimTriggered = false;
+          neighborPairState.grimTriggered = false;
+          cellPairState.stability = 0;
+          neighborPairState.stability = 0;
+        }
+      }
 
       if (cellAction === "D") {
         cellPairState.punishmentRemaining = Math.max(
@@ -346,7 +375,7 @@ function applyDeadTick(cells) {
 
     if (!reproductionConditionMet) continue;
 
-    if (Math.random() < 0.07) {
+    if (Math.random() < 0.03) {
       nextCells[index] = {
         ...deadCell,
         alive: true,
@@ -516,7 +545,54 @@ function App() {
         nextCells = applySweep(nextCells, strategySettings);
       }
 
+      const nextRoundValue = round + sweeps;
+      if (nextRoundValue % 30 === 0) {
+        nextCells = nextCells.map((cell) => {
+          if (!cell || !cell.alive) return cell;
+
+          const reducedHp = Math.max(0, cell.hp - 3);
+          return {
+            ...cell,
+            hp: reducedHp,
+            alive: reducedHp > 0,
+          };
+        });
+      }
+
       const counts = getPopulationCounts(nextCells);
+      const recentHistory = history.slice(-8);
+      const hasStablePopulation =
+        recentHistory.length >= 6 &&
+        recentHistory.every((entry) =>
+          entry.yellow === counts.yellow &&
+          entry.green === counts.green &&
+          entry.blue === counts.blue &&
+          entry.red === counts.red &&
+          entry.dead === counts.dead
+        );
+
+      if (hasStablePopulation && nextCells.some((cell) => cell && cell.alive)) {
+        const aliveIndices = nextCells
+          .map((cell, index) => (cell && cell.alive ? index : null))
+          .filter((index) => index !== null);
+
+        const mutationCount = Math.min(3, aliveIndices.length);
+
+        for (let mutationIndex = 0; mutationIndex < mutationCount; mutationIndex += 1) {
+          const targetIndex = aliveIndices[Math.floor(Math.random() * aliveIndices.length)];
+          const targetCell = nextCells[targetIndex];
+          const mutationColor = CELL_COLORS[Math.floor(Math.random() * CELL_COLORS.length)];
+
+          nextCells[targetIndex] = {
+            ...targetCell,
+            hp: Math.max(1, Math.min(MAX_HP, targetCell.hp + (Math.random() < 0.5 ? 2 : -2))),
+            color: mutationColor,
+            strategy: mutationColor,
+            pairMemory: {},
+          };
+        }
+      }
+
       setHistory((previousHistory) => {
         const lastEntry = previousHistory[previousHistory.length - 1];
         const nextSweep = (lastEntry?.sweep ?? 0) + sweeps;
