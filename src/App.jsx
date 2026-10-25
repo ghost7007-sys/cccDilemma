@@ -25,20 +25,39 @@ const DEFAULT_STRATEGY_SETTINGS = {
     punishmentDuration: 3,
   },
   blue: {
-    label: "Always defect",
-    type: "always-defect",
-    randomness: 0,
-    initialAction: "D",
-    punishmentDuration: 2,
-  },
-  red: {
     label: "Tit for tat",
     type: "tit-for-tat",
     randomness: 0,
     initialAction: "C",
     punishmentDuration: 2,
   },
+  red: {
+    label: "Always defect",
+    type: "always-defect",
+    randomness: 0,
+    initialAction: "D",
+    punishmentDuration: 2,
+  },
 };
+
+const STRATEGY_DISPLAY_NAMES = {
+  green: "Always Cooperate",
+  yellow: "Grim Trigger",
+  blue: "Tit for Tat",
+  red: "Always Defect",
+};
+
+function getStrategyDisplayName(color) {
+  return STRATEGY_DISPLAY_NAMES[color] ?? color.charAt(0).toUpperCase() + color.slice(1);
+}
+
+function getStrategyColorValue(color) {
+  if (color === "green") return "#5ecf62";
+  if (color === "yellow") return "#f0d355";
+  if (color === "blue") return "#5aa5ff";
+  if (color === "red") return "#e35d57";
+  return "#8b93a6";
+}
 
 function createInitialCells() {
   return Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, index) => {
@@ -601,7 +620,7 @@ function App() {
           <div className="panel analytics-shell">
             <div className="panel-heading compact-heading">
               <div>
-                <h2>Evolution analytics</h2>
+                <h2>Evolution Analytics</h2>
                 <p>Population by sweep over time.</p>
               </div>
             </div>
@@ -638,23 +657,35 @@ function App() {
                       .join(" ");
 
                     return (
-                      <polyline
-                        key={color}
-                        points={points}
-                        fill="none"
-                        stroke={
-                          color === "green"
-                            ? "#5ecf62"
-                            : color === "yellow"
-                              ? "#f0d355"
-                              : color === "blue"
-                                ? "#5aa5ff"
-                                : "#e35d57"
-                        }
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                      <g key={color}>
+                        <polyline
+                          points={points}
+                          fill="none"
+                          stroke={getStrategyColorValue(color)}
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        {analyticsHistory.map((entry, index) => {
+                          const x = 60 + (index / Math.max(1, analyticsHistory.length - 1)) * 580;
+                          const y = 230 - (entry[color] / analyticsMaxValue) * 180;
+
+                          return (
+                            <g key={`${color}-${index}`}>
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="3.5"
+                                fill={getStrategyColorValue(color)}
+                                stroke="#0f141a"
+                                strokeWidth="1"
+                              >
+                                <title>{`${getStrategyDisplayName(color)}: ${entry[color]} cells`}</title>
+                              </circle>
+                            </g>
+                          );
+                        })}
+                      </g>
                     );
                   })}
                 </g>
@@ -674,7 +705,7 @@ function App() {
               {CELL_COLORS.map((color) => (
                 <span key={color}>
                   <i className={`legend-${color}`} />
-                  {color.charAt(0).toUpperCase() + color.slice(1)}
+                  {getStrategyDisplayName(color)}
                 </span>
               ))}
             </div>
@@ -689,7 +720,7 @@ function App() {
           <div className="panel strategy-shell">
             <div className="panel-heading compact-heading">
               <div>
-                <h2>Strategy customiser</h2>
+                <h2>Strategy Customiser</h2>
                 <p>Fine tune each preset around the prisoner's dilemma.</p>
               </div>
             </div>
@@ -706,7 +737,7 @@ function App() {
                     <span className={`strategy-swatch ${color}`} />
                     <div>
                       <strong>{config.label}</strong>
-                      <small>{color.charAt(0).toUpperCase() + color.slice(1)} cells</small>
+                      <small>{getStrategyDisplayName(color)} cells</small>
                     </div>
                   </button>
                 ))}
@@ -774,8 +805,8 @@ function App() {
         <div className="panel arena-panel">
           <div className="panel-heading">
             <div>
-              <h2>Population grid</h2>
-              <p>Click a colour, then click cells to keep them alive.</p>
+              <h2>The Arena</h2>
+              <p>Click a strategy, then click cells to keep them alive.</p>
             </div>
             <span className="live-tag">10 × 10 GRID</span>
           </div>
@@ -790,7 +821,7 @@ function App() {
                   setEraseMode(false);
                   setSelectedColor(color);
                 }}
-                title={`Select ${color} cells`}
+                title={`Select ${getStrategyDisplayName(color)} cells`}
               >
                 <span>{getCellSymbol({ alive: true, color })}</span>
               </button>
@@ -822,7 +853,7 @@ function App() {
                   onMouseEnter={() => handleCellMouseEnter(index)}
                   title={
                     isAlive
-                      ? `Cell ${index + 1}: ${cell.color} alive, HP ${cell.hp}/${MAX_HP}`
+                      ? `Cell ${index + 1}: ${getStrategyDisplayName(cell.color)} alive, HP ${cell.hp}/${MAX_HP}`
                       : `Cell ${index + 1}: dead`
                   }
                 >
@@ -844,16 +875,16 @@ function App() {
 
           <div className="legend">
             <span>
-              <i className="legend-green" /> Green
+              <i className="legend-green" /> {getStrategyDisplayName("green")}
             </span>
             <span>
-              <i className="legend-yellow" /> Yellow
+              <i className="legend-yellow" /> {getStrategyDisplayName("yellow")}
             </span>
             <span>
-              <i className="legend-blue" /> Blue
+              <i className="legend-blue" /> {getStrategyDisplayName("blue")}
             </span>
             <span>
-              <i className="legend-red" /> Red
+              <i className="legend-red" /> {getStrategyDisplayName("red")}
             </span>
             <span>
               <i className="legend-grey" /> Dead
@@ -929,7 +960,7 @@ function App() {
       <section className="game-heading with-tabs">
         <div>
           <div className="eyebrow">LIVE SIMULATION · DEMO</div>
-          <h1>The arena</h1>
+          <h1>The Arena</h1>
           <p>Click cells to toggle life, then run the simulation.</p>
         </div>
 
@@ -953,7 +984,7 @@ function App() {
             className={arenaTab === "strategy" ? "tab-button active" : "tab-button"}
             onClick={() => setArenaTab("strategy")}
           >
-            Strategy customiser
+            Strategy Customiser
           </button>
         </div>
       </section>
