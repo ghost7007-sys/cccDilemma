@@ -51,6 +51,13 @@ const STRATEGY_DISPLAY_NAMES = {
   red: "Always Defect",
 };
 
+const PARAMETER_HELP = {
+  randomness: "How often the strategy makes an unexpected move.",
+  initialAction: "The move a strategy chooses before it learns from neighbors.",
+  energyConservationThreshold: "If HP falls below this, the strategy defects to survive.",
+  punishmentDuration: "How many turns the strategy keeps defecting after a betrayal.",
+};
+
 function getStrategyDisplayName(color) {
   return STRATEGY_DISPLAY_NAMES[color] ?? color.charAt(0).toUpperCase() + color.slice(1);
 }
@@ -424,6 +431,7 @@ function App() {
   const [arenaTab, setArenaTab] = useState("arena");
   const [selectedStrategyColor, setSelectedStrategyColor] = useState("red");
   const [strategySettings, setStrategySettings] = useState(DEFAULT_STRATEGY_SETTINGS);
+  const [activeHelp, setActiveHelp] = useState(null);
   const [history, setHistory] = useState([
     { sweep: 0, yellow: 0, green: 0, blue: 0, red: 0, dead: 0 },
   ]);
@@ -722,97 +730,107 @@ function App() {
             </div>
 
             <div className="chart-wrapper">
-              <svg viewBox="0 0 680 260" role="img" aria-label="Evolution analytics chart">
+              <svg viewBox="0 0 700 300" role="img" aria-label="Evolution analytics chart">
                 <g>
                   {[0, 1, 2, 3, 4].map((step) => {
-                    const y = 26 + (step * 56);
+                    const y = 30 + (step * 46);
                     return (
                       <g key={`grid-${step}`}>
                         <line
-                          x1="60"
-                          x2="640"
+                          x1="80"
+                          x2="630"
                           y1={y}
                           y2={y}
                           stroke="rgba(213, 227, 255, 0.13)"
                           strokeWidth="1"
                         />
-                        <text x="26" y={y + 4} fill="#d3d9e4" fontSize="10" textAnchor="end">
+                        <text x="72" y={y + 4} fill="#d3d9e4" fontSize="10" textAnchor="end">
                           {Math.round((4 - step) * (analyticsMaxValue / 4))}
                         </text>
                       </g>
                     );
                   })}
-                  <line x1="60" x2="640" y1="230" y2="230" stroke="rgba(213,227,255,0.5)" />
-                  <line x1="60" x2="60" y1="30" y2="230" stroke="rgba(213,227,255,0.5)" />
+                  <line x1="80" x2="630" y1="220" y2="220" stroke="rgba(213,227,255,0.5)" />
+                  <line x1="80" x2="80" y1="30" y2="220" stroke="rgba(213,227,255,0.5)" />
                 </g>
 
                 <g>
-                  {analyticsHistory.map((entry, index) => {
-                    const x = 60 + (index / Math.max(1, analyticsHistory.length - 1)) * 580;
-                    return (
+                  {(() => {
+                    const finalSweepValue = Math.max(1, analyticsHistory[analyticsHistory.length - 1]?.sweep ?? 1);
+                    const xForSweep = (sweepValue) => 80 + (sweepValue / finalSweepValue) * 550;
+                    const tickValues = Array.from({ length: 5 }, (_, index) =>
+                      Math.round((finalSweepValue / 4) * index)
+                    );
+
+                    return tickValues.map((sweepValue) => (
                       <text
-                        key={`x-label-${index}`}
-                        x={x}
-                        y="248"
+                        key={`x-label-${sweepValue}`}
+                        x={xForSweep(sweepValue)}
+                        y="240"
                         fill="#d3d9e4"
                         fontSize="10"
                         textAnchor="middle"
                       >
-                        {index}
+                        {sweepValue}
                       </text>
-                    );
-                  })}
+                    ));
+                  })()}
                 </g>
 
                 <g>
-                  {CELL_COLORS.map((color) => {
-                    const points = analyticsHistory
-                      .map((entry, index) => {
-                        const x = 60 + (index / Math.max(1, analyticsHistory.length - 1)) * 580;
-                        const y = 230 - (entry[color] / analyticsMaxValue) * 180;
-                        return `${x},${y}`;
-                      })
-                      .join(" ");
+                  {(() => {
+                    const finalSweepValue = Math.max(1, analyticsHistory[analyticsHistory.length - 1]?.sweep ?? 1);
+                    const xForSweep = (sweepValue) => 80 + (sweepValue / finalSweepValue) * 550;
 
-                    return (
-                      <g key={color}>
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke={getStrategyColorValue(color)}
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        {analyticsHistory.map((entry, index) => {
-                          const x = 60 + (index / Math.max(1, analyticsHistory.length - 1)) * 580;
-                          const y = 230 - (entry[color] / analyticsMaxValue) * 180;
+                    return CELL_COLORS.map((color) => {
+                      const points = analyticsHistory
+                        .map((entry) => {
+                          const x = xForSweep(entry.sweep);
+                          const y = 220 - (entry[color] / analyticsMaxValue) * 190;
+                          return `${x},${y}`;
+                        })
+                        .join(" ");
 
-                          return (
-                            <g key={`${color}-${index}`}>
-                              <circle
-                                cx={x}
-                                cy={y}
-                                r="3.5"
-                                fill={getStrategyColorValue(color)}
-                                stroke="#0f141a"
-                                strokeWidth="1"
-                              >
-                                <title>{`${getStrategyDisplayName(color)}: sweep ${index}, cells ${entry[color]}`}</title>
-                              </circle>
-                            </g>
-                          );
-                        })}
-                      </g>
-                    );
-                  })}
+                      return (
+                        <g key={color}>
+                          <polyline
+                            points={points}
+                            fill="none"
+                            stroke={getStrategyColorValue(color)}
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          {analyticsHistory.map((entry) => {
+                            const x = xForSweep(entry.sweep);
+                            const y = 220 - (entry[color] / analyticsMaxValue) * 190;
+
+                            return (
+                              <g key={`${color}-${entry.sweep}`}>
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r="3.5"
+                                  fill={getStrategyColorValue(color)}
+                                  stroke="#0f141a"
+                                  strokeWidth="1"
+                                >
+                                  <title>{`${getStrategyDisplayName(color)}: sweep ${entry.sweep}, cells ${entry[color]}`}</title>
+                                </circle>
+                              </g>
+                            );
+                          })}
+                        </g>
+                      );
+                    });
+                  })()}
                 </g>
 
                 <g>
-                  <text x="35" y="110" fill="#d3d9e4" transform="rotate(-90 35 110)" fontSize="11">
+                  <text x="28" y="126" fill="#d3d9e4" transform="rotate(-90 28 126)" fontSize="11">
                     No. of cells
                   </text>
-                  <text x="300" y="252" fill="#d3d9e4" fontSize="11">
+                  <text x="350" y="272" fill="#d3d9e4" fontSize="11" textAnchor="middle">
                     No. of sweeps
                   </text>
                 </g>
@@ -862,70 +880,134 @@ function App() {
               </div>
 
               <div className="strategy-controls">
-                <div className="setting-row">
-                  <label htmlFor="randomness-slider">Randomness</label>
-                  <span>{selectedStrategyConfig.randomness}%</span>
-                </div>
-                <input
-                  id="randomness-slider"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={selectedStrategyConfig.randomness}
-                  onChange={(event) =>
-                    handleStrategySettingChange("randomness", Number(event.target.value))
-                  }
-                />
-
-                <div className="setting-row">
-                  <label htmlFor="initial-action">Initial action</label>
-                </div>
-                <div className="choice-row" id="initial-action">
-                  <button
-                    type="button"
-                    className={selectedStrategyConfig.initialAction === "C" ? "segmented selected" : "segmented"}
-                    onClick={() => handleStrategySettingChange("initialAction", "C")}
-                  >
-                    Cooperate
-                  </button>
-                  <button
-                    type="button"
-                    className={selectedStrategyConfig.initialAction === "D" ? "segmented selected" : "segmented"}
-                    onClick={() => handleStrategySettingChange("initialAction", "D")}
-                  >
-                    Defect
-                  </button>
+                <div className="setting-block">
+                  <div className="setting-row">
+                    <div className="setting-label-wrap">
+                      <label htmlFor="randomness-slider">Randomness</label>
+                      <button
+                        type="button"
+                        className="help-icon"
+                        onClick={() => setActiveHelp((current) => (current === "randomness" ? null : "randomness"))}
+                        aria-label="Explain randomness"
+                      >
+                        ?
+                      </button>
+                    </div>
+                    <span>{selectedStrategyConfig.randomness}%</span>
+                  </div>
+                  {activeHelp === "randomness" && (
+                    <div className="setting-help">{PARAMETER_HELP.randomness}</div>
+                  )}
+                  <input
+                    id="randomness-slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={selectedStrategyConfig.randomness}
+                    onChange={(event) =>
+                      handleStrategySettingChange("randomness", Number(event.target.value))
+                    }
+                  />
                 </div>
 
-                <div className="setting-row">
-                  <label htmlFor="energy-threshold">Energy conservation threshold</label>
-                  <span>{selectedStrategyConfig.energyConservationThreshold}</span>
+                <div className="setting-block">
+                  <div className="setting-row">
+                    <div className="setting-label-wrap">
+                      <label htmlFor="initial-action">Initial action</label>
+                      <button
+                        type="button"
+                        className="help-icon"
+                        onClick={() => setActiveHelp((current) => (current === "initialAction" ? null : "initialAction"))}
+                        aria-label="Explain initial action"
+                      >
+                        ?
+                      </button>
+                    </div>
+                  </div>
+                  {activeHelp === "initialAction" && (
+                    <div className="setting-help">{PARAMETER_HELP.initialAction}</div>
+                  )}
+                  <div className="choice-row" id="initial-action">
+                    <button
+                      type="button"
+                      className={selectedStrategyConfig.initialAction === "C" ? "segmented selected" : "segmented"}
+                      onClick={() => handleStrategySettingChange("initialAction", "C")}
+                    >
+                      Cooperate
+                    </button>
+                    <button
+                      type="button"
+                      className={selectedStrategyConfig.initialAction === "D" ? "segmented selected" : "segmented"}
+                      onClick={() => handleStrategySettingChange("initialAction", "D")}
+                    >
+                      Defect
+                    </button>
+                  </div>
                 </div>
-                <input
-                  id="energy-threshold"
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={selectedStrategyConfig.energyConservationThreshold}
-                  onChange={(event) =>
-                    handleStrategySettingChange("energyConservationThreshold", Number(event.target.value))
-                  }
-                />
 
-                <div className="setting-row">
-                  <label htmlFor="punishment-slider">Punishment duration</label>
-                  <span>{selectedStrategyConfig.punishmentDuration} turns</span>
+                <div className="setting-block">
+                  <div className="setting-row">
+                    <div className="setting-label-wrap">
+                      <label htmlFor="energy-threshold">Energy conservation threshold</label>
+                      <button
+                        type="button"
+                        className="help-icon"
+                        onClick={() =>
+                          setActiveHelp((current) =>
+                            current === "energyConservationThreshold" ? null : "energyConservationThreshold"
+                          )
+                        }
+                        aria-label="Explain energy conservation threshold"
+                      >
+                        ?
+                      </button>
+                    </div>
+                    <span>{selectedStrategyConfig.energyConservationThreshold}</span>
+                  </div>
+                  {activeHelp === "energyConservationThreshold" && (
+                    <div className="setting-help">{PARAMETER_HELP.energyConservationThreshold}</div>
+                  )}
+                  <input
+                    id="energy-threshold"
+                    type="range"
+                    min="0"
+                    max="10"
+                    value={selectedStrategyConfig.energyConservationThreshold}
+                    onChange={(event) =>
+                      handleStrategySettingChange("energyConservationThreshold", Number(event.target.value))
+                    }
+                  />
                 </div>
-                <input
-                  id="punishment-slider"
-                  type="range"
-                  min="0"
-                  max="8"
-                  value={selectedStrategyConfig.punishmentDuration}
-                  onChange={(event) =>
-                    handleStrategySettingChange("punishmentDuration", Number(event.target.value))
-                  }
-                />
+
+                <div className="setting-block">
+                  <div className="setting-row">
+                    <div className="setting-label-wrap">
+                      <label htmlFor="punishment-slider">Punishment duration</label>
+                      <button
+                        type="button"
+                        className="help-icon"
+                        onClick={() => setActiveHelp((current) => (current === "punishmentDuration" ? null : "punishmentDuration"))}
+                        aria-label="Explain punishment duration"
+                      >
+                        ?
+                      </button>
+                    </div>
+                    <span>{selectedStrategyConfig.punishmentDuration} turns</span>
+                  </div>
+                  {activeHelp === "punishmentDuration" && (
+                    <div className="setting-help">{PARAMETER_HELP.punishmentDuration}</div>
+                  )}
+                  <input
+                    id="punishment-slider"
+                    type="range"
+                    min="0"
+                    max="8"
+                    value={selectedStrategyConfig.punishmentDuration}
+                    onChange={(event) =>
+                      handleStrategySettingChange("punishmentDuration", Number(event.target.value))
+                    }
+                  />
+                </div>
               </div>
             </div>
           </div>
